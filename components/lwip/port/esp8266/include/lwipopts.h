@@ -875,11 +875,11 @@ size_t memp_malloc_get_size(size_t type);
  *  \#define DNS_LOOKUP_LOCAL_EXTERN(x) extern err_t my_lookup_function(const char *name, ip_addr_t *addr, u8_t dns_addrtype)
  *  that looks up the IP address and returns ERR_OK if found (LWIP_DNS_ADDRTYPE_xxx is passed in dns_addrtype).
  */
-#define DNS_LOCAL_HOSTLIST              0
+#define DNS_LOCAL_HOSTLIST              1
 
 /** If this is turned on, the local host-list can be dynamically changed
  *  at runtime. */
-#define DNS_LOCAL_HOSTLIST_IS_DYNAMIC   0
+#define DNS_LOCAL_HOSTLIST_IS_DYNAMIC   1
 
 /** Set this to 1 to enable querying ".local" names via mDNS
  *  using a One-Shot Multicast DNS Query */
