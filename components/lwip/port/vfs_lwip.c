@@ -28,16 +28,35 @@
 
 _Static_assert(MAX_FDS >= CONFIG_LWIP_MAX_SOCKETS, "MAX_FDS < CONFIG_LWIP_MAX_SOCKETS");
 
-static void lwip_stop_socket_select()
+extern u8_t lwip_select_iswait;
+extern u8_t lwip_select_waitting;
+
+static void lwip_stop_socket_select(void *sem)
 {
-    sys_sem_signal(sys_thread_sem_get()); //socket_select will return
+    if (lwip_select_waitting) {
+        sys_sem_signal(sem); //socket_select will return
+    } else {
+        lwip_select_iswait = 0;
+    }
 }
 
-static void lwip_stop_socket_select_isr(BaseType_t *woken)
+static void lwip_stop_socket_select_isr(void *sem, BaseType_t *woken)
 {
-    if (sys_sem_signal_isr(sys_thread_sem_get()) && woken) {
-        *woken = pdTRUE;
+    if (lwip_select_waitting) {
+        if (sys_sem_signal_isr(sem) && woken) {
+            *woken = pdTRUE;
+        }
+    } else {
+        lwip_select_iswait = 0;
     }
+}
+
+static void *lwip_get_socket_select_semaphore(void)
+{
+    /* Calling this from the same process as select() will ensure that the semaphore won't be allocated from
+     * ISR (lwip_stop_socket_select_isr).
+     */
+    return (void *) sys_thread_sem_get();
 }
 
 static int lwip_fcntl_r_wrapper(int fd, int cmd, va_list args)
@@ -64,6 +83,7 @@ void esp_vfs_lwip_sockets_register()
         .socket_select = &lwip_select,
         .stop_socket_select = &lwip_stop_socket_select,
         .stop_socket_select_isr = &lwip_stop_socket_select_isr,
+        .get_socket_select_semaphore = &lwip_get_socket_select_semaphore,
     };
     /* Non-LWIP file descriptors are from 0 to (LWIP_SOCKET_OFFSET-1). LWIP
      * file descriptors are registered from LWIP_SOCKET_OFFSET to

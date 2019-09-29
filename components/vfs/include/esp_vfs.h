@@ -65,6 +65,16 @@ extern "C" {
 typedef int esp_vfs_id_t;
 
 /**
+ * @brief VFS semaphore type for select()
+ *
+ */
+typedef struct
+{
+    bool is_sem_local;      /*!< type of "sem" is SemaphoreHandle_t when true, defined by socket driver otherwise */
+    void *sem;              /*!< semaphore instance */
+} esp_vfs_select_sem_t;
+
+/**
  * @brief VFS definition structure
  *
  * This structure should be filled with pointers to corresponding
@@ -212,15 +222,17 @@ typedef struct
 #endif // CONFIG_SUPPORT_TERMIOS
 
     /** start_select is called for setting up synchronous I/O multiplexing of the desired file descriptors in the given VFS */
-    esp_err_t (*start_select)(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, SemaphoreHandle_t *signal_sem);
+    esp_err_t (*start_select)(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, esp_vfs_select_sem_t sem, void **end_select_args);
     /** socket select function for socket FDs with the functionality of POSIX select(); this should be set only for the socket VFS */
     int (*socket_select)(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struct timeval *timeout);
     /** called by VFS to interrupt the socket_select call when select is activated from a non-socket VFS driver; set only for the socket driver */
-    void (*stop_socket_select)();
+    void (*stop_socket_select)(void *sem);
     /** stop_socket_select which can be called from ISR; set only for the socket driver */
-    void (*stop_socket_select_isr)(BaseType_t *woken);
+    void (*stop_socket_select_isr)(void *sem, BaseType_t *woken);
+    /** get_socket_select_semaphore returns semaphore allocated in the socket driver; set only for the socket driver */
+    void* (*get_socket_select_semaphore)(void);
     /** end_select is called to stop the I/O multiplexing and deinitialize the environment created by start_select for the given VFS */
-    void (*end_select)();
+    esp_err_t (*end_select)(void *end_select_args);
 } esp_vfs_t;
 
 
@@ -366,7 +378,7 @@ int esp_vfs_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds
  *
  * @param signal_sem semaphore handle which was passed to the driver by the start_select call
  */
-void esp_vfs_select_triggered(SemaphoreHandle_t *signal_sem);
+void esp_vfs_select_triggered(esp_vfs_select_sem_t sem);
 
 /**
  * @brief Notification from a VFS driver about a read/write/error condition (ISR version)
@@ -377,7 +389,7 @@ void esp_vfs_select_triggered(SemaphoreHandle_t *signal_sem);
  * @param signal_sem semaphore handle which was passed to the driver by the start_select call
  * @param woken is set to pdTRUE if the function wakes up a task with higher priority
  */
-void esp_vfs_select_triggered_isr(SemaphoreHandle_t *signal_sem, BaseType_t *woken);
+void esp_vfs_select_triggered_isr(esp_vfs_select_sem_t sem, BaseType_t *woken);
 
 #ifdef __cplusplus
 } // extern "C"

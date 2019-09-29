@@ -1403,6 +1403,9 @@ lwip_selscan(int maxfdp1, fd_set *readset_in, fd_set *writeset_in, fd_set *excep
   return nready;
 }
 
+u8_t lwip_select_iswait = 1;
+u8_t lwip_select_waitting = 0;
+
 int
 lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
             struct timeval *timeout)
@@ -1512,8 +1515,13 @@ lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
             msectimeout = 1;
           }
         }
-
+        if (!lwip_select_iswait) {
+          msectimeout = 1;
+          lwip_select_iswait = 1;
+        }
+        lwip_select_waitting = 1;
         waitres = sys_arch_sem_wait(SELECT_SEM_PTR(select_cb.sem), msectimeout);
+        lwip_select_waitting = 0;
 #if LWIP_NETCONN_SEM_PER_THREAD
         waited = 1;
 #endif
